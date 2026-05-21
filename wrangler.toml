@@ -1,0 +1,47 @@
+name = "book-orders"
+main = "src/index.js"
+compatibility_date = "2026-05-12"
+
+# ================= PROD ROUTES =================
+routes = [
+  { pattern = "api.fundorashop.com/*", zone_name = "fundorashop.com" },
+  { pattern = "api.fundorashop.com/v1/*", zone_name = "fundorashop.com" }
+]
+
+# ================= PROD D1 =================
+[[d1_databases]]
+binding = "DB"
+database_name = "app-db"
+database_id = "3b2d0500-0527-425a-a0cb-bc92e4fa51b8"
+
+# ================= PROD KV =================
+[[kv_namespaces]]
+binding = "ORDER_RATE_LIMIT"
+id = "ea7782379a6e4b4e9687d001478606ac"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "f3d5caade25442859944e5e2cced3a0a"
+
+# ================= DEV ENV =================
+[env.dev]
+name = "book-orders-dev"
+
+routes = [
+  { pattern = "dev-api.fundorashop.com/*", zone_name = "fundorashop.com" }
+]
+
+# 🔥 CRITICAL: DEV MUST ALSO HAVE DB BINDING
+[[env.dev.d1_databases]]
+binding = "DB"
+database_name = "app-db"
+database_id = "3b2d0500-0527-425a-a0cb-bc92e4fa51b8"
+
+# OPTIONAL: reuse same KV in dev (OK for now)
+[[env.dev.kv_namespaces]]
+binding = "ORDER_RATE_LIMIT"
+id = "ea7782379a6e4b4e9687d001478606ac"
+
+[[env.dev.kv_namespaces]]
+binding = "SESSIONS"
+id = "f3d5caade25442859944e5e2cced3a0a"
