@@ -15,7 +15,9 @@ export async function telegramWebhook(request, env) {
 
     console.log("🔥 CALLBACK:", action, orderId);
 
-    // Telegram loading
+    // =========================
+    // Telegram loading state
+    // =========================
     await fetch(
       `https://api.telegram.org/bot${env.BOT_TOKEN}/answerCallbackQuery`,
       {
@@ -39,10 +41,12 @@ export async function telegramWebhook(request, env) {
       finalText = "APPROVED";
 
       const order = await env.DB.prepare(
-        `SELECT o.email, o.book_id, b.title, b.file
-         FROM orders o
-         LEFT JOIN books b ON o.book_id = b.id
-         WHERE o.id = ?`
+        `
+        SELECT o.id, o.email, o.book_id, b.title, b.file
+        FROM orders o
+        LEFT JOIN books b ON o.book_id = b.id
+        WHERE o.id = ?
+        `
       )
         .bind(orderId)
         .first();
@@ -52,7 +56,6 @@ export async function telegramWebhook(request, env) {
       if (order?.email && order?.file) {
         console.log("📧 Generating signed URL...");
 
-        // ✅ FIX: proper Supabase signed URL
         const downloadLink = await createSignedUrl(order.file, env);
 
         console.log("🔗 Signed URL:", downloadLink);
@@ -70,6 +73,19 @@ export async function telegramWebhook(request, env) {
       } else {
         console.log("⚠️ Missing email or file");
       }
+
+      // =========================
+      // UPDATE INVOICE → PAID
+      // =========================
+      await env.DB.prepare(
+        `
+        UPDATE invoices
+        SET payment_status = 'paid'
+        WHERE order_id = ?
+        `
+      )
+        .bind(orderId)
+        .run();
     }
 
     // =========================
@@ -83,7 +99,7 @@ export async function telegramWebhook(request, env) {
     }
 
     // =========================
-    // UPDATE DB
+    // UPDATE ORDER STATUS
     // =========================
     await env.DB.prepare(
       "UPDATE orders SET status = ? WHERE id = ?"
@@ -92,7 +108,7 @@ export async function telegramWebhook(request, env) {
       .run();
 
     // =========================
-    // Disable buttons
+    // Disable Telegram buttons
     // =========================
     if (message?.chat?.id && message?.message_id) {
       await fetch(
@@ -119,7 +135,7 @@ export async function telegramWebhook(request, env) {
     }
 
     // =========================
-    // Final toast
+    // Final Telegram response
     // =========================
     await fetch(
       `https://api.telegram.org/bot${env.BOT_TOKEN}/answerCallbackQuery`,

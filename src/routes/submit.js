@@ -12,7 +12,7 @@ export async function submit(request, env, cors) {
     return json({ ok: false, error: "missing fields" }, 400, cors);
   }
 
-  // check duplicate transaction
+  // check duplicate tx
   const exists = await env.DB.prepare(
     "SELECT id FROM orders WHERE tx = ?"
   ).bind(tx).first();
@@ -23,7 +23,7 @@ export async function submit(request, env, cors) {
 
   const orderId = crypto.randomUUID();
 
-  // insert order
+  // 1. INSERT ORDER
   await env.DB.prepare(`
     INSERT INTO orders (id, email, tx, book_id, status, created_at)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -36,12 +36,32 @@ export async function submit(request, env, cors) {
     new Date().toISOString()
   ).run();
 
-  // get book title
+  // 2. GET BOOK INFO
   const book = await env.DB.prepare(
-    "SELECT title FROM books WHERE id = ?"
+    "SELECT title, price FROM books WHERE id = ?"
   ).bind(bookId).first();
 
-  // send to Telegram bot
+  // 3. CREATE INVOICE NUMBER
+  const invoiceNo =
+    "INV-" + Math.random().toString(16).slice(2, 10).toUpperCase();
+
+  // 4. INSERT INVOICE
+  await env.DB.prepare(`
+    INSERT INTO invoices 
+    (id, order_id, invoice_no, email, book_id, amount, payment_status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    crypto.randomUUID(),
+    orderId,
+    invoiceNo,
+    email,
+    bookId,
+    book?.price || 0,
+    "pending",
+    new Date().toISOString()
+  ).run();
+
+  // 5. TELEGRAM NOTIFY
   await sendOrderToTelegram(
     {
       id: orderId,
@@ -52,10 +72,12 @@ export async function submit(request, env, cors) {
     env
   );
 
+  // 6. RESPONSE (IMPORTANT FOR FRONTEND REDIRECT)
   return json(
     {
       ok: true,
-      order_id: orderId
+      order_id: orderId,
+      invoice_no: invoiceNo
     },
     200,
     cors
