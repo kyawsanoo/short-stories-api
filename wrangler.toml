@@ -1,37 +1,41 @@
 name = "book-orders"
 main = "src/index.js"
+
 compatibility_date = "2026-05-12"
-workers_dev = true
+
+workers_dev = false
 
 # =========================================================
 # 🚀 PRODUCTION
 # =========================================================
+[env.production]
+name = "book-orders"
 
 routes = [
-  { pattern = "api.fundorashop.com/*", zone_name = "fundorashop.com" },
-  { pattern = "api.fundorashop.com/v1/*", zone_name = "fundorashop.com" }
+  { pattern = "api.fundorashop.com/*", zone_name = "fundorashop.com" }
 ]
 
-[[d1_databases]]
+[[env.production.d1_databases]]
 binding = "DB"
 database_name = "app-db"
 database_id = "3b2d0500-0527-425a-a0cb-bc92e4fa51b8"
 
-[[kv_namespaces]]
+[[env.production.kv_namespaces]]
 binding = "ORDER_RATE_LIMIT"
-id = "ea7782379a6e4b4e9687d001478606ac"
+id = "764239cfab034e5eacda3e8278f38c55"
 
-[[kv_namespaces]]
+[[env.production.kv_namespaces]]
 binding = "SESSIONS"
 id = "f3d5caade25442859944e5e2cced3a0a"
 
-# =========================================================
-# 🚀 STAGING
-# =========================================================
 
+# =========================================================
+# 🧪 STAGING
+# =========================================================
 [env.staging]
 name = "book-orders-staging"
-workers_dev = true
+
+workers_dev = false
 
 routes = [
   { pattern = "staging-api.fundorashop.com/*", zone_name = "fundorashop.com" }
@@ -44,8 +48,8 @@ database_id = "c1dab80d-e183-4c7b-a6ec-bd45a9e559ae"
 
 [[env.staging.kv_namespaces]]
 binding = "ORDER_RATE_LIMIT"
-id = "ea7782379a6e4b4e9687d001478606ac"
+id = "2c8be46544ba4adca0da901b3b54979a"
 
 [[env.staging.kv_namespaces]]
 binding = "SESSIONS"
-id = "f3d5caade25442859944e5e2cced3a0a"
+id = "3516be74327c4493af038730de5bbd84"
