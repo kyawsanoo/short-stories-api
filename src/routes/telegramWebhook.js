@@ -37,56 +37,64 @@ export async function telegramWebhook(request, env) {
     // APPROVE ORDER
     // =========================
     if (action === "approve") {
-      status = "paid";
-      finalText = "APPROVED";
+  status = "paid";
+  finalText = "APPROVED";
 
-      const order = await env.DB.prepare(
-        `
-        SELECT o.id, o.email, o.book_id, b.title, b.file
-        FROM orders o
-        LEFT JOIN books b ON o.book_id = b.id
-        WHERE o.id = ?
-        `
-      )
-        .bind(orderId)
-        .first();
+  let downloadLink = null;
 
-      console.log("📦 ORDER:", order);
+  const order = await env.DB.prepare(
+    `
+    SELECT o.id, o.email, o.book_id, b.title, b.file
+    FROM orders o
+    LEFT JOIN books b ON o.book_id = b.id
+    WHERE o.id = ?
+    `
+  )
+    .bind(orderId)
+    .first();
 
-      if (order?.email && order?.file) {
-        console.log("📧 Generating signed URL...");
+  console.log("📦 ORDER:", order);
 
-        const downloadLink = await createSignedUrl(order.file, env);
+  if (order?.file) {
+    downloadLink = await createSignedUrl(order.file, env);
+    console.log("🔗 Signed URL:", downloadLink);
+  }
 
-        console.log("🔗 Signed URL:", downloadLink);
+  // 1. Update order FIRST (prevents race conditions)
+  await env.DB.prepare(
+    `UPDATE orders SET status = ? WHERE id = ?`
+  )
+    .bind(status, orderId)
+    .run();
 
-        await sendEbookEmail(
-          {
-            to: order.email,
-            bookTitle: order.title,
-            downloadLink
-          },
-          env
-        );
+  // 2. Update invoice safely
+  if (downloadLink) {
+    await env.DB.prepare(
+      `
+      UPDATE invoices
+      SET payment_status = 'paid',
+          download_url = ?
+      WHERE order_id = ?
+      `
+    )
+      .bind(downloadLink, orderId)
+      .run();
+  }
 
-        console.log("📨 Email sent");
-      } else {
-        console.log("⚠️ Missing email or file");
-      }
+  // 3. Send email AFTER DB update
+  if (order?.email && downloadLink) {
+    await sendEbookEmail(
+      {
+        to: order.email,
+        bookTitle: order.title,
+        downloadLink
+      },
+      env
+    );
 
-      // =========================
-      // UPDATE INVOICE → PAID
-      // =========================
-      await env.DB.prepare(
-        `
-        UPDATE invoices
-        SET payment_status = 'paid'
-        WHERE order_id = ?
-        `
-      )
-        .bind(orderId)
-        .run();
-    }
+    console.log("📨 Email sent");
+  }
+}
 
     // =========================
     // REJECT ORDER

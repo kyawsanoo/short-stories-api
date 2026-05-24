@@ -28,69 +28,76 @@ export default {
         });
       }
 
+      // Normalize path (IMPORTANT FIX)
+      const path = url.pathname.replace(/\/$/, ""); // removes trailing slash
+
+      console.log("PATH:", path);
+      console.log("METHOD:", request.method);
+
       // ROUTES
-      if (url.pathname === "/books") {
+      if (path === "/books") {
         return books(request, env, cors);
       }
 
-      if (url.pathname === "/categories") {
+      if (path === "/categories") {
         return categories(env, cors);
       }
 
-      if (url.pathname === "/signup") {
+      if (path === "/signup") {
         return signup(request, env, cors);
       }
 
-      if (url.pathname === "/login") {
+      if (path === "/login") {
         return login(request, env, cors);
       }
 
-      if (url.pathname === "/submit") {
+      if (path === "/submit") {
         return submit(request, env, cors);
       }
 
-      if (url.pathname === "/order-status") {
+      if (path === "/order-status") {
         return orderStatus(request, env, cors);
       }
 
-      if (url.pathname === "/telegram-webhook") {
+      if (path === "/telegram-webhook") {
         return telegramWebhook(request, env);
       }
 
-    
-      if (url.pathname.startsWith("/invoice/")) {
+      if (path.startsWith("/invoice/")) {
         return invoice(request, env, cors);
       }
 
-      router.get("/order-history", (req, env, ctx) =>
-        orderHistory(req, env, cors)
-      );
+      if (path === "/order-history" && request.method === "GET") {
+        return orderHistory(request, env, cors);
+      }
 
-      if (url.pathname === "/logout" && request.method === "POST") {
+      if (path === "/logout" && request.method === "POST") {
         return logout(request, env, cors);
       }
 
+      // DEBUG RESPONSE (better than silent failure)
       return json(
-        { ok: false, error: "route not found" },
+        {
+          ok: false,
+          error: "route not found",
+          path,
+          method: request.method
+        },
         404,
         cors
       );
 
     } catch (err) {
-      console.error("WORKER ERROR:", err);
+      console.error("WORKER ERROR:", err?.stack || err);
 
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: err.message || "server error"
-        }),
+      return json(
         {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            ...cors
-          }
-        }
+          ok: false,
+          error: "server error",
+          details: err?.message || String(err)
+        },
+        500,
+        cors
       );
     }
   }
