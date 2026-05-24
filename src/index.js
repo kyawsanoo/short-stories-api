@@ -9,6 +9,8 @@ import { submit } from "./routes/submit";
 import { orderStatus } from "./routes/orderStatus";
 import { telegramWebhook } from "./routes/telegramWebhook";
 import { invoice } from "./routes/invoice";
+import { orderHistory } from "./routes/orderHistory";
+import { logout } from "./routes/logout";
 
 export default {
   async fetch(request, env) {
@@ -56,9 +58,17 @@ export default {
       }
 
     
-if (url.pathname.startsWith("/invoice/")) {
-  return invoice(request, env, cors);
-}
+      if (url.pathname.startsWith("/invoice/")) {
+        return invoice(request, env, cors);
+      }
+
+      router.get("/order-history", (req, env, ctx) =>
+        orderHistory(req, env, cors)
+      );
+
+      if (url.pathname === "/logout" && request.method === "POST") {
+        return logout(request, env, cors);
+      }
 
       return json(
         { ok: false, error: "route not found" },
