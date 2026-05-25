@@ -1,4 +1,5 @@
 import { json } from "../utils/json";
+import { createSignedUrl } from "../utils/supabase";
 
 export async function invoice(request, env, cors) {
   try {
@@ -7,9 +8,6 @@ export async function invoice(request, env, cors) {
     const invoiceNo = url.pathname.split("/invoice/")[1];
     const email = url.searchParams.get("email");
 
-    // =========================
-    // VALIDATION
-    // =========================
     if (!invoiceNo || !email) {
       return json(
         { ok: false, error: "Missing invoice or email" },
@@ -18,9 +16,7 @@ export async function invoice(request, env, cors) {
       );
     }
 
-    // =========================
-    // DB QUERY (UPDATED for books and video collections)
-    // =========================
+    // Get invoice with product info
     const invoice = await env.DB.prepare(
       `
       SELECT 
@@ -36,15 +32,15 @@ export async function invoice(request, env, cors) {
         i.product_type,
         i.product_id,
         b.title as book_title,
-        b.price as book_price,
         b.file as book_file,
+        b.price as book_price,
         vc.title as collection_title,
+        vc.file as collection_file,
         vc.price as collection_price,
-        vc.old_price as collection_old_price,
-        vc.file as collection_file
+        vc.old_price as collection_old_price
       FROM invoices i
-      LEFT JOIN books b ON i.book_id = b.id
-      LEFT JOIN video_collections vc ON i.product_id = vc.id
+      LEFT JOIN books b ON i.product_id = b.id AND i.product_type = 'book'
+      LEFT JOIN video_collections vc ON i.product_id = vc.id AND i.product_type = 'video_collection'
       WHERE i.invoice_no = ? AND i.email = ?
       `
     )
@@ -59,23 +55,29 @@ export async function invoice(request, env, cors) {
       );
     }
 
-    // =========================
-    // Determine product title, type, and price
-    // =========================
     const isVideoCollection = invoice.product_type === "video_collection";
+    const isPaid = invoice.payment_status === "paid";
+    
     let productTitle = "";
     let productIcon = "";
     let downloadButtonText = "";
+    let downloadUrl = null;
     let displayAmount = invoice.amount || 0;
-    let oldPrice = null;
     
     if (isVideoCollection) {
       productTitle = invoice.collection_title || "Video Collection";
       productIcon = "🎬";
       downloadButtonText = "📥 Download Video Collection (ZIP)";
-      oldPrice = invoice.collection_old_price;
       
-      // If amount is 0, try to get from collection price
+      if (isPaid && invoice.collection_file) {
+        const fileValue = invoice.collection_file;
+        if (fileValue.includes('drive.google.com') || fileValue.startsWith('http')) {
+          downloadUrl = fileValue;
+        } else {
+          const filePath = `videos/${fileValue}`;
+          downloadUrl = await createSignedUrl(filePath, "videos", env);
+        }
+      }
       if (displayAmount === 0 && invoice.collection_price) {
         displayAmount = invoice.collection_price;
       }
@@ -84,48 +86,26 @@ export async function invoice(request, env, cors) {
       productIcon = "📚";
       downloadButtonText = "📥 Download E-Book (PDF)";
       
-      // If amount is 0, try to get from book price
+      if (isPaid && invoice.book_file) {
+        downloadUrl = await createSignedUrl(invoice.book_file, "ebooks", env);
+      }
       if (displayAmount === 0 && invoice.book_price) {
         displayAmount = invoice.book_price;
       }
     }
 
-    // Format price display with old price if available
+    // Format price with old price if available
     let priceDisplay = `${displayAmount.toLocaleString()} MMK`;
-    if (oldPrice) {
-      priceDisplay = `${displayAmount.toLocaleString()} MMK <span style="text-decoration: line-through; color: #999;">(Was: ${oldPrice.toLocaleString()} MMK)</span>`;
+    if (isVideoCollection && invoice.collection_old_price) {
+      priceDisplay = `${displayAmount.toLocaleString()} MMK <span style="text-decoration: line-through; color: #999;">(Was: ${invoice.collection_old_price.toLocaleString()} MMK)</span>`;
     }
 
-    // =========================
-    // AUTO-FIX: save invoice_url if missing
-    // =========================
-    let invoiceUrl = invoice.invoice_url;
-
-    if (!invoiceUrl) {
-      invoiceUrl = `${new URL(request.url).origin}/invoice/${invoice.invoice_no}?email=${invoice.email}`;
-
-      await env.DB.prepare(
-        `UPDATE invoices SET invoice_url = ? WHERE invoice_no = ?`
-      )
-        .bind(invoiceUrl, invoice.invoice_no)
-        .run();
-    }
-
-    // =========================
-    // SAFE VALUES
-    // =========================
     const paymentStatus = invoice.payment_status || "pending";
     const createdAt = new Date(invoice.created_at).toLocaleString();
     const orderId = invoice.order_id || "-";
-    const isPaid = paymentStatus === "paid";
-    const downloadUrl = isPaid ? invoice.download_url : null;
     const displayEmail = invoice.email;
 
-    // =========================
-    // HTML
-    // =========================
-    const html = `
-<!DOCTYPE html>
+    const html = `<!DOCTYPE html>
 <html>
 <head>
   <title>Invoice ${invoice.invoice_no}</title>
@@ -178,10 +158,6 @@ export async function invoice(request, env, cors) {
       word-break: break-word;
       flex: 1;
     }
-    .detail-value.email-value {
-      word-break: break-all;
-      font-size: 14px;
-    }
     .status {
       font-weight: bold;
       display: inline-block;
@@ -205,7 +181,6 @@ export async function invoice(request, env, cors) {
       font-size: 16px;
     }
     .download:hover { transform: translateY(-2px); filter: brightness(1.05); }
-    .download:active { transform: translateY(0); }
     .btn {
       margin-top: 20px;
       padding: 12px 20px;
@@ -217,7 +192,6 @@ export async function invoice(request, env, cors) {
       color: white;
       font-size: 14px;
       width: 100%;
-      transition: background 0.2s;
     }
     .btn:hover { background: #4b5563; }
     .warning {
@@ -227,160 +201,71 @@ export async function invoice(request, env, cors) {
       border-radius: 12px;
       margin-top: 20px;
       font-size: 13px;
-      line-height: 1.5;
     }
     .warning strong { display: block; margin-bottom: 8px; }
-    .warning ul, .warning ol { margin-left: 20px; margin-top: 8px; }
-    .warning li { margin: 5px 0; }
+    .warning ol, .warning ul { margin-left: 20px; margin-top: 8px; }
     .footer {
       margin-top: 24px;
       text-align: center;
       font-size: 11px;
       color: #6b7280;
-      line-height: 1.4;
     }
     .product-badge {
       display: inline-block;
       padding: 4px 12px;
       border-radius: 20px;
       font-size: 12px;
-      font-weight: 500;
     }
     .badge-book { background: #2563eb20; color: #60a5fa; }
     .badge-video { background: #8b5cf620; color: #a78bfa; }
     @media (max-width: 550px) {
       body { padding: 12px; }
-      .card { padding: 18px 16px; border-radius: 12px; }
-      h1 { font-size: 24px; gap: 8px; margin-bottom: 16px; }
+      .card { padding: 18px 16px; }
+      h1 { font-size: 24px; }
       .product-icon { font-size: 28px; }
       .detail-row { flex-direction: column; padding: 10px 0; gap: 4px; }
       .detail-label { min-width: auto; font-size: 12px; }
-      .detail-value { text-align: left; font-size: 14px; word-break: break-all; }
-      .detail-value.email-value { font-size: 12px; }
+      .detail-value { text-align: left; font-size: 14px; }
       .download { padding: 12px 16px; font-size: 14px; }
-      .btn { padding: 10px 16px; font-size: 13px; }
-      .warning { padding: 12px; font-size: 12px; }
-    }
-    @media (max-width: 380px) {
-      .card { padding: 14px 12px; }
-      .detail-value.email-value { font-size: 11px; }
-      h1 { font-size: 20px; }
     }
     @media print {
-      body { background: white; padding: 0; color: black; }
-      .card { background: white; padding: 20px; box-shadow: none; color: black; }
+      body { background: white; color: black; }
+      .card { background: white; box-shadow: none; }
       .download, .btn { display: none; }
-      .warning { background: #f0f0f0; color: #333; border: 1px solid #ddd; }
-      .detail-row { border-bottom: 1px solid #ddd; }
-      .detail-label { color: #666; }
+      .warning { background: #f0f0f0; border: 1px solid #ddd; }
     }
   </style>
 </head>
 <body>
-
 <div class="card">
-  <h1>
-    <span class="product-icon">${productIcon}</span>
-    INVOICE
-  </h1>
-  
+  <h1><span class="product-icon">${productIcon}</span> INVOICE</h1>
   <div class="invoice-details">
-    <div class="detail-row">
-      <div class="detail-label">Invoice No:</div>
-      <div class="detail-value"><strong>${invoice.invoice_no}</strong></div>
-    </div>
-    
-    <div class="detail-row">
-      <div class="detail-label">Order ID:</div>
-      <div class="detail-value">${orderId}</div>
-    </div>
-    
-    <div class="detail-row">
-      <div class="detail-label">Email:</div>
-      <div class="detail-value email-value">${displayEmail}</div>
-    </div>
-    
-    <div class="detail-row">
-      <div class="detail-label">Product:</div>
-      <div class="detail-value"><strong>${productTitle}</strong></div>
-    </div>
-    
-    <div class="detail-row">
-      <div class="detail-label">Type:</div>
-      <div class="detail-value">
-        <span class="product-badge ${isVideoCollection ? 'badge-video' : 'badge-book'}">
-          ${isVideoCollection ? '🎬 Video Collection' : '📚 E-Book'}
-        </span>
-      </div>
-    </div>
-    
-    <div class="detail-row">
-      <div class="detail-label">Amount:</div>
-      <div class="detail-value"><strong>${priceDisplay}</strong></div>
-    </div>
-    
-    <div class="detail-row">
-      <div class="detail-label">Status:</div>
-      <div class="detail-value">
-        <span class="status ${paymentStatus === 'paid' ? 'status-paid' : 'status-pending'}">
-          ${paymentStatus === 'paid' ? '✓ PAID' : '⏳ PENDING'}
-        </span>
-      </div>
-    </div>
-    
-    <div class="detail-row">
-      <div class="detail-label">Date:</div>
-      <div class="detail-value">${createdAt}</div>
-    </div>
+    <div class="detail-row"><div class="detail-label">Invoice No:</div><div class="detail-value"><strong>${invoice.invoice_no}</strong></div></div>
+    <div class="detail-row"><div class="detail-label">Order ID:</div><div class="detail-value">${orderId}</div></div>
+    <div class="detail-row"><div class="detail-label">Email:</div><div class="detail-value email-value">${displayEmail}</div></div>
+    <div class="detail-row"><div class="detail-label">Product:</div><div class="detail-value"><strong>${productTitle}</strong></div></div>
+    <div class="detail-row"><div class="detail-label">Type:</div><div class="detail-value"><span class="product-badge ${isVideoCollection ? 'badge-video' : 'badge-book'}">${isVideoCollection ? '🎬 Video Collection' : '📚 E-Book'}</span></div></div>
+    <div class="detail-row"><div class="detail-label">Amount:</div><div class="detail-value"><strong>${priceDisplay}</strong></div></div>
+    <div class="detail-row"><div class="detail-label">Status:</div><div class="detail-value"><span class="status ${paymentStatus === 'paid' ? 'status-paid' : 'status-pending'}">${paymentStatus === 'paid' ? '✓ PAID' : '⏳ PENDING'}</span></div></div>
+    <div class="detail-row"><div class="detail-label">Date:</div><div class="detail-value">${createdAt}</div></div>
   </div>
 
-  ${isPaid && downloadUrl ? `
-    <a class="download" href="${downloadUrl}" target="_blank">
-      ${downloadButtonText}
-    </a>
+  ${paymentStatus === 'paid' && downloadUrl ? `
+    <a class="download" href="${downloadUrl}" target="_blank">${downloadButtonText}</a>
     ${isVideoCollection ? `
-      <div class="warning">
-        <strong>📋 How to access your videos:</strong>
-        <ol>
-          <li>Download the ZIP file to your device</li>
-          <li>Extract the ZIP file (right-click → Extract All)</li>
-          <li>Open the extracted folder to access your videos</li>
-          <li>Videos can be played on any media player</li>
-        </ol>
-        <strong>⚠️ Note:</strong> The download link expires in 24 hours.
-      </div>
+      <div class="warning"><strong>📋 How to access your videos:</strong><ol><li>Download the ZIP file to your device</li><li>Extract the ZIP file (right-click → Extract All)</li><li>Open the extracted folder to access your videos</li></ol><strong>⚠️ Note:</strong> The download link expires in 24 hours.</div>
     ` : `
-      <div class="warning">
-        <strong>📋 Instructions:</strong>
-        <ul>
-          <li>Click the download button above</li>
-          <li>Save the PDF to your device</li>
-          <li>You can read it offline anytime</li>
-          <li>The link expires in 24 hours</li>
-        </ul>
-      </div>
+      <div class="warning"><strong>📋 Instructions:</strong><ul><li>Click the download button above</li><li>Save the PDF to your device</li><li>The link expires in 24 hours</li></ul></div>
     `}
   ` : `
-    <div class="warning">
-      <strong>⏳ Payment Pending</strong>
-      <p>Your ${isVideoCollection ? 'video collection' : 'ebook'} will be available for download after payment confirmation.</p>
-      <p>Please complete your payment and wait for admin approval. You will receive an email when your order is ready.</p>
-    </div>
+    <div class="warning"><strong>⏳ Payment Pending</strong><p>Your ${isVideoCollection ? 'video collection' : 'ebook'} will be available for download after payment confirmation.</p><p>Please complete your payment and wait for admin approval. You will receive an email when your order is ready.</p></div>
   `}
 
-  <button class="btn" onclick="window.print()">
-    🖨️ Print / Save as PDF
-  </button>
+  <button class="btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
 </div>
-
-<div class="footer">
-  <p>© FundoraShop - Your Reliable Digital Marketplace</p>
-  <p>Need help? Contact: <a href="mailto:app.fundora@gmail.com" style="color: #60a5fa; text-decoration: none;">app.fundora@gmail.com</a></p>
-</div>
-
+<div class="footer"><p>© FundoraShop - Your Reliable Digital Marketplace</p><p>Need help? Contact: <a href="mailto:app.fundora@gmail.com" style="color: #60a5fa;">app.fundora@gmail.com</a></p></div>
 </body>
-</html>
-`;
+</html>`;
 
     return new Response(html, {
       headers: {
@@ -391,18 +276,11 @@ export async function invoice(request, env, cors) {
 
   } catch (err) {
     console.error("INVOICE ERROR:", err);
-
     return new Response(
-      JSON.stringify({
-        ok: false,
-        error: err.message
-      }),
+      JSON.stringify({ ok: false, error: err.message }),
       {
         status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          ...cors
-        }
+        headers: { "Content-Type": "application/json", ...cors }
       }
     );
   }

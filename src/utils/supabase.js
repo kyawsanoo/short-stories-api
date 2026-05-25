@@ -12,24 +12,17 @@ export function getSupabase(env) {
   });
 }
 
-/**
- * SAFE signed URL generator (Supports both books and video collections)
- * @param {string} filePath - Path to file (e.g., 'book.pdf' or 'videos/videos_poems.zip')
- * @param {string} bucket - Storage bucket name ('ebooks' or 'videos')
- * @param {object} env - Environment variables
- */
-export async function createSignedUrl(filePath, bucket = "ebooks", env) {
+export async function createSignedUrl(filePath, bucket, env) {
   const supabase = getSupabase(env);
-
-  // clean path (VERY IMPORTANT)
   const cleanPath = filePath.replace(/^\/+/, "");
-
+  
+  // 1 day expiry (86,400 seconds)
   const { data, error } = await supabase.storage
     .from(bucket)
-    .createSignedUrl(cleanPath, 60 * 60 * 24); // 24h
+    .createSignedUrl(cleanPath, 60 * 60 * 24);
 
   if (error) {
-    console.log(`❌ Supabase error (${bucket}):`, error);
+    console.error("❌ Supabase error:", error);
     throw new Error(error.message);
   }
 
