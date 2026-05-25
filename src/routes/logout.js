@@ -49,21 +49,15 @@ export async function logout(request, env, cors) {
       );
     }
 
-    // 5. Invalidate session in DB
-    try {
-      await env.DB.prepare(
-        "UPDATE users SET session_token = NULL, session_expires = NULL WHERE id = ?"
-      )
-        .bind(user.id)
-        .run();
-    } catch (dbErr) {
-      console.error("DB logout error:", dbErr);
-      return json(
-        { ok: false, error: "Failed to logout" },
-        500,
-        cors
-      );
-    }
+    // 5. Invalidate session in DB (only update columns that exist)
+    // Remove 'session_expires' if your table doesn't have it
+    await env.DB.prepare(
+      "UPDATE users SET session_token = NULL WHERE id = ?"
+    )
+      .bind(user.id)
+      .run();
+
+    console.log("✅ User logged out:", user.email);
 
     // 6. Success response
     return json(
@@ -79,13 +73,12 @@ export async function logout(request, env, cors) {
     console.error("LOGOUT FATAL ERROR:", err?.stack || err);
 
     return json(
-  {
-    ok: false,
-    error: "Logout failed",
-    details: err?.stack || String(err)
-  },
-  500,
-  cors
-);
+      {
+        ok: false,
+        error: "Logout failed"
+      },
+      500,
+      cors
+    );
   }
 }
