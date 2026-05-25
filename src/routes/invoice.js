@@ -32,6 +32,7 @@ export async function invoice(request, env, cors) {
         i.payment_status,
         i.created_at,
         i.download_url,
+        i.invoice_url,
         b.title
       FROM invoices i
       LEFT JOIN books b ON i.book_id = b.id
@@ -47,6 +48,21 @@ export async function invoice(request, env, cors) {
         404,
         cors
       );
+    }
+
+    // =========================
+    // AUTO-FIX: save invoice_url if missing (optional safety)
+    // =========================
+    let invoiceUrl = invoice.invoice_url;
+
+    if (!invoiceUrl) {
+      invoiceUrl = `${new URL(request.url).origin}/invoice/${invoice.invoice_no}?email=${invoice.email}`;
+
+      await env.DB.prepare(
+        `UPDATE invoices SET invoice_url = ? WHERE invoice_no = ?`
+      )
+        .bind(invoiceUrl, invoice.invoice_no)
+        .run();
     }
 
     // =========================

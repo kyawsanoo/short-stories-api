@@ -12,6 +12,11 @@ import { invoice } from "./routes/invoice";
 import { orderHistory } from "./routes/orderHistory";
 import { logout } from "./routes/logout";
 
+import { videoCollections } from "./routes/videoCollections";
+import { videos } from "./routes/videos";
+import { collectionsWithVideos } from "./routes/collectionsWithVideos";
+
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -74,6 +79,20 @@ export default {
       if (path === "/logout" && request.method === "POST") {
         return logout(request, env, cors);
       }
+
+      
+      if (path === "/video-collections") {
+        return videoCollections(request, env, cors);
+      }
+
+      if (path === "/videos") {
+        return videos(request, env, cors);
+      }
+
+      if (path === "/collections-with-videos") {
+        return collectionsWithVideos(request, env, cors);
+      }
+      
 
       // DEBUG RESPONSE (better than silent failure)
       return json(
