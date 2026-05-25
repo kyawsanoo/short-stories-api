@@ -16,6 +16,9 @@ import { videoCollections } from "./routes/videoCollections";
 import { videos } from "./routes/videos";
 import { collectionsWithVideos } from "./routes/collectionsWithVideos";
 
+import { forgetPassword } from "./routes/forgetPassword";
+import { resetPassword } from "./routes/resetPassword";
+
 
 export default {
   async fetch(request, env) {
@@ -93,6 +96,14 @@ export default {
         return collectionsWithVideos(request, env, cors);
       }
       
+if (path === "/forget-password" && request.method === "POST") {
+  return forgetPassword(request, env, cors);
+}
+
+if (path === "/reset-password" && request.method === "POST") {
+  return resetPassword(request, env, cors);
+}
+
 
       // DEBUG RESPONSE (better than silent failure)
       return json(

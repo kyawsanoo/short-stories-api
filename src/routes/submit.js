@@ -162,34 +162,26 @@ export async function submit(request, env, cors) {
     // For video collections, use a placeholder to satisfy NOT NULL constraint
     const bookIdValue = (productType === "book") ? productId : 'video_no_book_placeholder';
     
-    await env.DB.prepare(`
-      INSERT INTO invoices (
-        id,
-        order_id,
-        invoice_no,
-        email,
-        book_id,
-        product_type,
-        product_id,
-        amount,
-        payment_status,
-        created_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      invoiceId,
-      orderId,
-      invoiceNo,
-      email,
-      bookIdValue,  // Placeholder for video collections
-      productType,
-      productType === "video_collection" ? parseInt(productId, 10) : productId,
-      productPrice,
-      "pending",
-      new Date().toISOString()
-    ).run();
+    const invoiceUrl = `https://api.fundorashop.com/invoice/${invoiceNo}?email=${email}`;
 
-    console.log("✅ Invoice inserted");
+await env.DB.prepare(`
+  INSERT INTO invoices (
+    id, order_id, invoice_no, email, book_id, product_type, product_id,
+    amount, payment_status, created_at, invoice_url
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).bind(
+  invoiceId, orderId, invoiceNo, email,
+  bookIdValue,
+  productType,
+  productType === "video_collection" ? parseInt(productId, 10) : productId,
+  productPrice,
+  "pending",
+  new Date().toISOString(),
+  invoiceUrl
+).run();    
+
+console.log("✅ Invoice inserted");
 
     // =========================
     // VERIFY INVOICE WAS INSERTED

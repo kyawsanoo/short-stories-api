@@ -112,7 +112,7 @@ export async function sendVideoEmail(data, env) {
             <strong>📋 How to access your videos:</strong>
             <ol>
               <li>Download the ZIP file to your computer or phone</li>
-              <li>Extract the ZIP file (right-click → Extract All on Windows)</li>
+              <li>Extract the ZIP file (right-click → Extract All)</li>
               <li>Open the extracted folder to access your videos</li>
               <li>Videos can be played on any media player</li>
             </ol>
@@ -162,17 +162,81 @@ export async function sendVideoEmail(data, env) {
 // UNIFIED FUNCTION (Backward Compatibility)
 // =========================
 export async function sendEbookEmail(data, env) {
-  if (data.isVideoCollection) {
+  const { to, bookTitle, downloadLink, isVideoCollection, fileType } = data;
+
+  if (isVideoCollection) {
     return sendVideoEmail({
-      to: data.to,
-      collectionTitle: data.bookTitle,
-      downloadLink: data.downloadLink
+      to: to,
+      collectionTitle: bookTitle,
+      downloadLink: downloadLink
     }, env);
   } else {
     return sendBookEmail({
-      to: data.to,
-      bookTitle: data.bookTitle,
-      downloadLink: data.downloadLink
+      to: to,
+      bookTitle: bookTitle,
+      downloadLink: downloadLink
     }, env);
   }
+}
+
+// =========================
+// PASSWORD RESET EMAIL
+// =========================
+export async function sendResetEmail(data, env) {
+  const { to, name, resetUrl } = data;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+        .header { background: #3b82f6; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+        .button { display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #6b7280; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h2>🔐 Password Reset</h2>
+        </div>
+        <div class="content">
+          <p>Hello ${name || "User"},</p>
+          <p>We received a request to reset your password. Click the button below to create a new password:</p>
+          
+          <div style="text-align: center;">
+            <a href="${resetUrl}" class="button">Reset Password</a>
+          </div>
+          
+          <p>Or copy this link: <br>${resetUrl}</p>
+          
+          <p><strong>⚠️ This link expires in 1 hour.</strong></p>
+          <p>If you didn't request this, please ignore this email.</p>
+        </div>
+        <div class="footer">
+          <p>© FundoraShop - Your Reliable Digital Marketplace</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: "Fundora <onboarding@resend.dev>",
+      to: [to],
+      subject: "Reset Your Password",
+      html: html
+    })
+  });
+
+  return await res.json();
 }
