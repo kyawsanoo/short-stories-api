@@ -13,20 +13,23 @@ export function getSupabase(env) {
 }
 
 /**
- * SAFE signed URL generator (FIXES YOUR TOKEN ERROR)
+ * SAFE signed URL generator (Supports both books and video collections)
+ * @param {string} filePath - Path to file (e.g., 'book.pdf' or 'videos/videos_poems.zip')
+ * @param {string} bucket - Storage bucket name ('ebooks' or 'videos')
+ * @param {object} env - Environment variables
  */
-export async function createSignedUrl(filePath, env) {
+export async function createSignedUrl(filePath, bucket = "ebooks", env) {
   const supabase = getSupabase(env);
 
   // clean path (VERY IMPORTANT)
   const cleanPath = filePath.replace(/^\/+/, "");
 
   const { data, error } = await supabase.storage
-    .from("ebooks")
+    .from(bucket)
     .createSignedUrl(cleanPath, 60 * 60 * 24); // 24h
 
   if (error) {
-    console.log("❌ Supabase error:", error);
+    console.log(`❌ Supabase error (${bucket}):`, error);
     throw new Error(error.message);
   }
 
