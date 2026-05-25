@@ -20,19 +20,30 @@ export async function orderStatus(request, env, cors) {
     }
 
     // ======================
-    // DB SEARCH
+    // DB SEARCH (UPDATED for books and video collections)
     // ======================
     const result = await env.DB.prepare(`
       SELECT 
         o.id,
         o.email,
+        o.tx,
         o.status AS order_status,
+        o.created_at,
+        o.product_type,
+        o.product_id,
         i.invoice_no,
         i.payment_status,
-        b.title
+        i.amount,
+        i.download_url,
+        i.invoice_url,
+        b.title AS book_title,
+        b.cover AS book_cover,
+        vc.title AS collection_title,
+        vc.thumbnail AS collection_thumbnail
       FROM orders o
       LEFT JOIN invoices i ON i.order_id = o.id
-      LEFT JOIN books b ON o.book_id = b.id
+      LEFT JOIN books b ON o.product_id = b.id AND o.product_type = 'book'
+      LEFT JOIN video_collections vc ON CAST(o.product_id AS INTEGER) = vc.id AND o.product_type = 'video_collection'
       WHERE CAST(o.id AS TEXT) = ?
          OR i.invoice_no = ?
       LIMIT 1
@@ -58,18 +69,53 @@ export async function orderStatus(request, env, cors) {
     }
 
     // ======================
-    // SUCCESS
+    // Determine product type and title
+    // ======================
+    const isVideoCollection = result.product_type === "video_collection";
+    let productTitle = "";
+    let productCover = "";
+    
+    if (isVideoCollection) {
+      productTitle = result.collection_title || "Video Collection";
+      productCover = result.collection_thumbnail || "";
+    } else {
+      productTitle = result.book_title || "E-Book";
+      productCover = result.book_cover || "";
+    }
+
+    const finalStatus = result.payment_status || result.order_status || "pending";
+    const isPaid = finalStatus === "paid";
+    const orderDate = result.created_at ? new Date(result.created_at).toLocaleDateString() : null;
+
+    // ======================
+    // SUCCESS (UPDATED response)
     // ======================
     return json(
       {
         ok: true,
         order: {
           id: result.id,
-          email: result.email
+          email: result.email,
+          tx: result.tx,
+          created_at: result.created_at,
+          order_date: orderDate,
+          product_type: result.product_type,
+          product_id: result.product_id
         },
-        book_title: result.title,
-        status: result.payment_status || result.order_status,
-        invoice_no: result.invoice_no || null
+        product: {
+          title: productTitle,
+          cover: productCover,
+          type: isVideoCollection ? "video_collection" : "book",
+          type_label: isVideoCollection ? "Video Collection" : "E-Book"
+        },
+        book_title: productTitle,
+        collection_title: result.collection_title,
+        status: finalStatus,
+        is_paid: isPaid,
+        invoice_no: result.invoice_no || null,
+        invoice_url: result.invoice_url || null,
+        amount: result.amount || 0,
+        download_url: isPaid ? result.download_url : null
       },
       200,
       {
@@ -87,7 +133,7 @@ export async function orderStatus(request, env, cors) {
     return json(
       {
         ok: false,
-        error: "Server error"
+        error: "Server error. Please try again later."
       },
       500,
       {
