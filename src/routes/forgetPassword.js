@@ -41,8 +41,11 @@ export async function forgetPassword(request, env, cors) {
       WHERE id = ?
     `).bind(resetToken, resetExpires.toISOString(), user.id).run();
 
-    // Generate reset URL
-    const resetUrl = `https://fundorashop.com/reset-password?token=${resetToken}&email=${email}`;
+    // =============================================
+    // GENERATE RESET URL - FIXED (use your worker URL)
+    // =============================================
+    //const resetUrl = `https://fundorashop.kyawsanoo-androider.workers.dev?token=${resetToken}&email=${email}`;
+    const resetUrl = `https://fundorashop.com?token=${resetToken}&email=${email}`;
 
     // Send email with reset link
     try {

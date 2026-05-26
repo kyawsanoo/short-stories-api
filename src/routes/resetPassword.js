@@ -6,7 +6,8 @@ export async function resetPassword(request, env, cors) {
     const form = await request.formData();
     const token = form.get("token");
     const email = (form.get("email") || "").toLowerCase().trim();
-    const newPassword = form.get("new_password");
+    // FIXED: Accept both field names
+    const newPassword = form.get("new_password") || form.get("password");
     const confirmPassword = form.get("confirm_password");
 
     // Validation
