@@ -58,7 +58,9 @@ export async function invoice(request, env, cors) {
     const isVideoCollection = invoice.product_type === "video_collection";
     const paymentStatus = invoice.payment_status || "pending";
     
-    // Map status to display text and CSS class
+    // =============================================
+    // STATUS DISPLAY MAPPING (FIXED FOR REJECTED)
+    // =============================================
     let statusText = "";
     let statusClass = "";
 
@@ -293,7 +295,7 @@ export async function invoice(request, env, cors) {
     </div>
   ` : `
     <div class="warning"><strong>⏳ Payment Pending</strong><p>Your ${isVideoCollection ? 'video collection' : 'ebook'} will be available for download after payment confirmation.</p><p>Please complete your payment and wait for admin approval. You will receive an email when your order is ready.</p></div>
- `}
+  `}
 
   <button class="btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
 </div>
