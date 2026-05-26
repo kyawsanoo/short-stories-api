@@ -182,6 +182,7 @@ export async function sendEbookEmail(data, env) {
 // =========================
 // PASSWORD RESET EMAIL
 // =========================
+// utils/email.js - Updated sendResetEmail
 export async function sendResetEmail(data, env) {
   const { to, name, resetUrl } = data;
 
@@ -226,12 +227,8 @@ export async function sendResetEmail(data, env) {
     </html>
   `;
 
+  // Try Resend
   try {
-    console.log("📧 Attempting to send via Resend...");
-    console.log("   API Key present:", !!env.RESEND_API_KEY);
-    console.log("   From: Fundora <noreply@fundorashop.com>");  // ✅ CHANGED
-    console.log("   To:", to);
-    
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -239,7 +236,7 @@ export async function sendResetEmail(data, env) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        from: "Fundora <noreply@fundorashop.com>",  // ✅ CHANGED
+        from: "Fundora <noreply@fundorashop.com>",
         to: [to],
         subject: "Reset Your Password",
         html: html
@@ -248,27 +245,32 @@ export async function sendResetEmail(data, env) {
 
     const result = await res.json();
     console.log("📧 Resend Response Status:", res.status);
-    console.log("📧 Resend Response Body:", JSON.stringify(result, null, 2));
     
-    if (!res.ok) {
-      console.error("📧 Resend failed with status:", res.status);
-      console.error("📧 Error details:", result);
-      
-      console.log("\n========== PASSWORD RESET LINK (EMAIL FAILED) ==========");
-      console.log(`Email: ${to}`);
-      console.log(`Reset URL: ${resetUrl}`);
-      console.log(`========================================================\n`);
+    if (res.ok) {
+      console.log("✅ Email sent successfully via Resend");
+      return { ok: true, sent: true };
+    } else {
+      console.error("❌ Resend failed:", result);
     }
-    
-    return result;
   } catch (err) {
-    console.error("📧 PASSWORD RESET EMAIL ERROR:", err);
-    
-    console.log("\n========== PASSWORD RESET LINK (EXCEPTION) ==========");
-    console.log(`Email: ${to}`);
-    console.log(`Reset URL: ${resetUrl}`);
-    console.log(`=====================================================\n`);
-    
-    throw err;
+    console.error("❌ Resend error:", err.message);
   }
+
+  // =============================================
+  // FALLBACK: Log to console (you'll see in wrangler tail)
+  // =============================================
+  console.log("\n" + "═".repeat(60));
+  console.log("🔐 PASSWORD RESET LINK (EMAIL FAILED - USE THIS LINK)");
+  console.log("═".repeat(60));
+  console.log(`📧 Email: ${to}`);
+  console.log(`🔗 Reset Link: ${resetUrl}`);
+  console.log("═".repeat(60) + "\n");
+  
+  // Return success with link (for development)
+  return { 
+    ok: true, 
+    sent: false,
+    dev_link: resetUrl,  // ← Frontend can show this in development
+    message: "Reset link generated. Check server logs or contact support."
+  };
 }
