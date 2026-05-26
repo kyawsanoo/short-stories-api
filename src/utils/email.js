@@ -60,7 +60,7 @@ export async function sendBookEmail(data, env) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: "Fundora <onboarding@resend.dev>",
+      from: "Fundora <noreply@fundorashop.com>",  // ✅ CHANGED
       to: [to],
       subject: `Your Ebook: ${bookTitle}`,
       html: html
@@ -146,7 +146,7 @@ export async function sendVideoEmail(data, env) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: "Fundora <onboarding@resend.dev>",
+      from: "Fundora <noreply@fundorashop.com>",  // ✅ CHANGED
       to: [to],
       subject: `Your Video Collection: ${collectionTitle}`,
       html: html
@@ -184,6 +184,8 @@ export async function sendEbookEmail(data, env) {
 // =========================
 export async function sendResetEmail(data, env) {
   const { to, name, resetUrl } = data;
+
+  console.log("📧 PASSWORD RESET EMAIL START:", { to, name, resetUrl });
 
   const html = `
     <!DOCTYPE html>
@@ -224,19 +226,49 @@ export async function sendResetEmail(data, env) {
     </html>
   `;
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${env.RESEND_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      from: "Fundora <onboarding@resend.dev>",
-      to: [to],
-      subject: "Reset Your Password",
-      html: html
-    })
-  });
+  try {
+    console.log("📧 Attempting to send via Resend...");
+    console.log("   API Key present:", !!env.RESEND_API_KEY);
+    console.log("   From: Fundora <noreply@fundorashop.com>");  // ✅ CHANGED
+    console.log("   To:", to);
+    
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: "Fundora <noreply@fundorashop.com>",  // ✅ CHANGED
+        to: [to],
+        subject: "Reset Your Password",
+        html: html
+      })
+    });
 
-  return await res.json();
+    const result = await res.json();
+    console.log("📧 Resend Response Status:", res.status);
+    console.log("📧 Resend Response Body:", JSON.stringify(result, null, 2));
+    
+    if (!res.ok) {
+      console.error("📧 Resend failed with status:", res.status);
+      console.error("📧 Error details:", result);
+      
+      console.log("\n========== PASSWORD RESET LINK (EMAIL FAILED) ==========");
+      console.log(`Email: ${to}`);
+      console.log(`Reset URL: ${resetUrl}`);
+      console.log(`========================================================\n`);
+    }
+    
+    return result;
+  } catch (err) {
+    console.error("📧 PASSWORD RESET EMAIL ERROR:", err);
+    
+    console.log("\n========== PASSWORD RESET LINK (EXCEPTION) ==========");
+    console.log(`Email: ${to}`);
+    console.log(`Reset URL: ${resetUrl}`);
+    console.log(`=====================================================\n`);
+    
+    throw err;
+  }
 }
