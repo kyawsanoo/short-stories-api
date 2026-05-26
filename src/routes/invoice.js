@@ -56,7 +56,22 @@ export async function invoice(request, env, cors) {
     }
 
     const isVideoCollection = invoice.product_type === "video_collection";
-    const isPaid = invoice.payment_status === "paid";
+    const paymentStatus = invoice.payment_status || "pending";
+    
+    // Map status to display text and CSS class
+    let statusText = "";
+    let statusClass = "";
+
+    if (paymentStatus === "paid") {
+      statusText = "✓ PAID";
+      statusClass = "status-paid";
+    } else if (paymentStatus === "rejected") {
+      statusText = "✗ REJECTED";
+      statusClass = "status-rejected";
+    } else {
+      statusText = "⏳ PENDING";
+      statusClass = "status-pending";
+    }
     
     let productTitle = "";
     let productIcon = "";
@@ -69,7 +84,7 @@ export async function invoice(request, env, cors) {
       productIcon = "🎬";
       downloadButtonText = "📥 Download Video Collection (ZIP)";
       
-      if (isPaid && invoice.collection_file) {
+      if (paymentStatus === 'paid' && invoice.collection_file) {
         const fileValue = invoice.collection_file;
         if (fileValue.includes('drive.google.com') || fileValue.startsWith('http')) {
           downloadUrl = fileValue;
@@ -86,7 +101,7 @@ export async function invoice(request, env, cors) {
       productIcon = "📚";
       downloadButtonText = "📥 Download E-Book (PDF)";
       
-      if (isPaid && invoice.book_file) {
+      if (paymentStatus === 'paid' && invoice.book_file) {
         downloadUrl = await createSignedUrl(invoice.book_file, "ebooks", env);
       }
       if (displayAmount === 0 && invoice.book_price) {
@@ -100,7 +115,6 @@ export async function invoice(request, env, cors) {
       priceDisplay = `${displayAmount.toLocaleString()} MMK <span style="text-decoration: line-through; color: #999;">(Was: ${invoice.collection_old_price.toLocaleString()} MMK)</span>`;
     }
 
-    const paymentStatus = invoice.payment_status || "pending";
     const createdAt = new Date(invoice.created_at).toLocaleString();
     const orderId = invoice.order_id || "-";
     const displayEmail = invoice.email;
@@ -165,8 +179,9 @@ export async function invoice(request, env, cors) {
       border-radius: 20px;
       font-size: 12px;
     }
-    .status-pending { background: #f59e0b20; color: #f59e0b; }
     .status-paid { background: #10b98120; color: #10b981; }
+    .status-pending { background: #f59e0b20; color: #f59e0b; }
+    .status-rejected { background: #ef444420; color: #ef4444; }
     .download {
       margin-top: 24px;
       display: block;
@@ -201,6 +216,14 @@ export async function invoice(request, env, cors) {
       border-radius: 12px;
       margin-top: 20px;
       font-size: 13px;
+    }
+    .warning.rejected {
+      background: rgba(239, 68, 68, 0.1);
+      border-left: 4px solid #ef4444;
+      color: #ef4444;
+    }
+    .warning.rejected strong {
+      color: #ef4444;
     }
     .warning strong { display: block; margin-bottom: 8px; }
     .warning ol, .warning ul { margin-left: 20px; margin-top: 8px; }
@@ -246,7 +269,7 @@ export async function invoice(request, env, cors) {
     <div class="detail-row"><div class="detail-label">Product:</div><div class="detail-value"><strong>${productTitle}</strong></div></div>
     <div class="detail-row"><div class="detail-label">Type:</div><div class="detail-value"><span class="product-badge ${isVideoCollection ? 'badge-video' : 'badge-book'}">${isVideoCollection ? '🎬 Video Collection' : '📚 E-Book'}</span></div></div>
     <div class="detail-row"><div class="detail-label">Amount:</div><div class="detail-value"><strong>${priceDisplay}</strong></div></div>
-    <div class="detail-row"><div class="detail-label">Status:</div><div class="detail-value"><span class="status ${paymentStatus === 'paid' ? 'status-paid' : 'status-pending'}">${paymentStatus === 'paid' ? '✓ PAID' : '⏳ PENDING'}</span></div></div>
+    <div class="detail-row"><div class="detail-label">Status:</div><div class="detail-value"><span class="status ${statusClass}">${statusText}</span></div></div>
     <div class="detail-row"><div class="detail-label">Date:</div><div class="detail-value">${createdAt}</div></div>
   </div>
 
@@ -257,9 +280,20 @@ export async function invoice(request, env, cors) {
     ` : `
       <div class="warning"><strong>📋 Instructions:</strong><ul><li>Click the download button above</li><li>Save the PDF to your device</li><li>The link expires in 24 hours</li></ul></div>
     `}
+  ` : paymentStatus === 'rejected' ? `
+    <div class="warning rejected">
+      <strong>❌ Order Rejected</strong>
+      <p>Your order has been rejected. Possible reasons:</p>
+      <ul>
+        <li>Transaction ID could not be verified</li>
+        <li>Payment amount does not match order total</li>
+        <li>Duplicate transaction ID detected</li>
+      </ul>
+      <p>Please contact customer support for assistance.</p>
+    </div>
   ` : `
     <div class="warning"><strong>⏳ Payment Pending</strong><p>Your ${isVideoCollection ? 'video collection' : 'ebook'} will be available for download after payment confirmation.</p><p>Please complete your payment and wait for admin approval. You will receive an email when your order is ready.</p></div>
-  `}
+ `}
 
   <button class="btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
 </div>
