@@ -53,3 +53,8 @@ id = "2c8be46544ba4adca0da901b3b54979a"
 [[env.staging.kv_namespaces]]
 binding = "SESSIONS"
 id = "3516be74327c4493af038730de5bbd84"
+
+
+# Enable logs for debugging
+[observability]
+enabled = true
