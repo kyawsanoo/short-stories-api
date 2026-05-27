@@ -18,6 +18,10 @@ import { collectionsWithVideos } from "./routes/collectionsWithVideos";
 
 import { forgetPassword } from "./routes/forgetPassword";
 import { resetPassword } from "./routes/resetPassword";
+import { submitRating } from "./routes/submitRating";
+import { getReviews } from "./routes/getReviews";
+
+
 // Last deploy: 2026-05-27 - Testing GitHub Actions
 
 export default {
@@ -103,6 +107,44 @@ if (path === "/forget-password" && request.method === "POST") {
 if (path === "/reset-password" && request.method === "POST") {
   return resetPassword(request, env, cors);
 }
+
+if (path === "/submit-rating" && request.method === "POST") {
+  return submitRating(request, env, cors);
+}
+
+if (path === "/book-reviews" && request.method === "GET") {
+  return getReviews(request, env, cors);
+}
+
+// =============================================
+// SITEMAP ROUTE - ADD THIS HERE
+// =============================================
+if (path === "/sitemap.xml") {
+  const books = await env.DB.prepare("SELECT id, title FROM books").all();
+  
+  let sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://fundorashop.com/</loc>
+    <priority>1.0</priority>
+  </url>`;
+  
+  for (const book of books.results) {
+    sitemap += `
+  <url>
+    <loc>https://fundorashop.com/#/book/${book.id}</loc>
+    <priority>0.8</priority>
+  </url>`;
+  }
+  
+  sitemap += `
+</urlset>`;
+  
+  return new Response(sitemap, {
+    headers: { "Content-Type": "application/xml" }
+  });
+}
+
 
 
       // DEBUG RESPONSE (better than silent failure)
