@@ -22,6 +22,8 @@ import { submitRating } from "./routes/submitRating";
 import { getReviews } from "./routes/getReviews";
 
 
+// Last deploy: 2026-05-27 - Testing GitHub Actions
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
