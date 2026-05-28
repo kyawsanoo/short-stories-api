@@ -21,6 +21,8 @@ import { resetPassword } from "./routes/resetPassword";
 import { submitRating } from "./routes/submitRating";
 import { getReviews } from "./routes/getReviews";
 import { verifyStreamingAccess } from "./routes/verifyStreamingAccess";  
+import { generateShareToken } from "./routes/generateShareToken";
+import { verifyShareToken } from "./routes/verifyShareToken";
 
 
 
@@ -147,6 +149,15 @@ if (path === "/sitemap.xml") {
   });
 }
 
+
+// Add routes
+if (path === "/generate-share-token" && request.method === "POST") {
+  return generateShareToken(request, env, cors);
+}
+
+if (path === "/verify-share-token" && request.method === "GET") {
+  return verifyShareToken(request, env, cors);
+}
 
 if (path === "/verify-streaming-access" && request.method === "GET") {
   return verifyStreamingAccess(request, env, cors);
