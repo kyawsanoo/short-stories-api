@@ -16,7 +16,7 @@ export async function invoice(request, env, cors) {
       );
     }
 
-    // Get invoice with product info
+    // Get invoice with product info AND streaming token
     const invoice = await env.DB.prepare(
       `
       SELECT 
@@ -37,10 +37,12 @@ export async function invoice(request, env, cors) {
         vc.title as collection_title,
         vc.file as collection_file,
         vc.price as collection_price,
-        vc.old_price as collection_old_price
+        vc.old_price as collection_old_price,
+        va.access_token
       FROM invoices i
       LEFT JOIN books b ON i.product_id = b.id AND i.product_type = 'book'
       LEFT JOIN video_collections vc ON i.product_id = vc.id AND i.product_type = 'video_collection'
+      LEFT JOIN video_access va ON i.order_id = va.order_id AND i.product_id = va.collection_id
       WHERE i.invoice_no = ? AND i.email = ?
       `
     )
@@ -58,9 +60,7 @@ export async function invoice(request, env, cors) {
     const isVideoCollection = invoice.product_type === "video_collection";
     const paymentStatus = invoice.payment_status || "pending";
     
-    // =============================================
-    // STATUS DISPLAY MAPPING (FIXED FOR REJECTED)
-    // =============================================
+    // STATUS DISPLAY MAPPING
     let statusText = "";
     let statusClass = "";
 
@@ -80,6 +80,7 @@ export async function invoice(request, env, cors) {
     let downloadButtonText = "";
     let downloadUrl = null;
     let displayAmount = invoice.amount || 0;
+    let streamingToken = invoice.access_token || null;
     
     if (isVideoCollection) {
       productTitle = invoice.collection_title || "Video Collection";
@@ -120,6 +121,12 @@ export async function invoice(request, env, cors) {
     const createdAt = new Date(invoice.created_at).toLocaleString();
     const orderId = invoice.order_id || "-";
     const displayEmail = invoice.email;
+
+    // Generate watch URL if streaming token exists
+    let watchUrl = "";
+    if (isVideoCollection && paymentStatus === 'paid' && streamingToken) {
+      watchUrl = `https://fundorashop.com/watch?token=${streamingToken}&id=${invoice.product_id}`;
+    }
 
     const html = `<!DOCTYPE html>
 <html>
@@ -198,6 +205,20 @@ export async function invoice(request, env, cors) {
       font-size: 16px;
     }
     .download:hover { transform: translateY(-2px); filter: brightness(1.05); }
+    .watch-btn {
+      margin-top: 16px;
+      display: block;
+      padding: 14px 20px;
+      text-align: center;
+      background: #10b981;
+      color: white;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      font-size: 16px;
+    }
+    .watch-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
     .btn {
       margin-top: 20px;
       padding: 12px 20px;
@@ -251,12 +272,12 @@ export async function invoice(request, env, cors) {
       .detail-row { flex-direction: column; padding: 10px 0; gap: 4px; }
       .detail-label { min-width: auto; font-size: 12px; }
       .detail-value { text-align: left; font-size: 14px; }
-      .download { padding: 12px 16px; font-size: 14px; }
+      .download, .watch-btn { padding: 12px 16px; font-size: 14px; }
     }
     @media print {
       body { background: white; color: black; }
       .card { background: white; box-shadow: none; }
-      .download, .btn { display: none; }
+      .download, .watch-btn, .btn { display: none; }
       .warning { background: #f0f0f0; border: 1px solid #ddd; }
     }
   </style>
@@ -277,8 +298,9 @@ export async function invoice(request, env, cors) {
 
   ${paymentStatus === 'paid' && downloadUrl ? `
     <a class="download" href="${downloadUrl}" target="_blank">${downloadButtonText}</a>
+    ${watchUrl ? `<a class="watch-btn" href="${watchUrl}" target="_blank">🎬 Watch Now (Streaming)</a>` : ''}
     ${isVideoCollection ? `
-      <div class="warning"><strong>📋 How to access your videos:</strong><ol><li>Download the ZIP file to your device</li><li>Extract the ZIP file (right-click → Extract All)</li><li>Open the extracted folder to access your videos</li></ol><strong>⚠️ Note:</strong> The download link expires in 24 hours.</div>
+      <div class="warning"><strong>📋 How to access your videos:</strong><ol><li>Download the ZIP file to your device (or watch instantly above)</li><li>Extract the ZIP file (right-click → Extract All)</li><li>Open the extracted folder to access your videos</li></ol><strong>⚠️ Note:</strong> The download link expires in 24 hours. Streaming link expires in 1 year.</div>
     ` : `
       <div class="warning"><strong>📋 Instructions:</strong><ul><li>Click the download button above</li><li>Save the PDF to your device</li><li>The link expires in 24 hours</li></ul></div>
     `}

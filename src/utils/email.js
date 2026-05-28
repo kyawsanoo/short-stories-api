@@ -73,12 +73,13 @@ export async function sendBookEmail(data, env) {
 }
 
 // =========================
-// VIDEO COLLECTION EMAIL (ZIP)
+// VIDEO COLLECTION EMAIL (ZIP + STREAMING)
 // =========================
+// utils/email.js
 export async function sendVideoEmail(data, env) {
-  const { to, collectionTitle, downloadLink } = data;
+  const { to, collectionTitle, downloadLink, watchUrl } = data;
 
-  console.log("🎬 VIDEO EMAIL START:", { to, collectionTitle, downloadLink });
+  console.log("🎬 VIDEO EMAIL START:", { to, collectionTitle, downloadLink, watchUrl });
 
   const html = `
     <!DOCTYPE html>
@@ -89,7 +90,9 @@ export async function sendVideoEmail(data, env) {
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: white; padding: 30px; text-align: center; border-radius: 10px; }
         .content { padding: 30px; background: #f9fafb; border-radius: 10px; margin-top: 20px; }
-        .button { display: inline-block; background: #8b5cf6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+        .button { display: inline-block; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+        .watch-btn { background: #10b981; }
+        .download-btn { background: #3b82f6; }
         .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #6b7280; }
         .warning { background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b; }
         .steps { background: #e0e7ff; padding: 15px; border-radius: 8px; margin: 20px 0; }
@@ -101,30 +104,36 @@ export async function sendVideoEmail(data, env) {
           <h1>🎬 Thank You for Your Purchase!</h1>
         </div>
         <div class="content">
-          <h2>Your Video Collection: ${collectionTitle}</h2>
-          <p>Your video collection is ready for download. Click the button below to download the ZIP file.</p>
+          <h2>${collectionTitle}</h2>
           
-          <div style="text-align: center;">
-            <a href="${downloadLink}" class="button">📥 Download Video Collection (ZIP)</a>
+          <!-- Watch Now Button (Streaming) -->
+          <div style="text-align: center; background: #10b98120; padding: 20px; border-radius: 12px; margin: 20px 0;">
+            <h3 style="color: #10b981; margin-top: 0;">📺 Watch Instantly</h3>
+            <p>Click below to watch immediately in your browser. No download needed!</p>
+            <a href="${watchUrl}" class="button watch-btn" style="background: #10b981;">🎬 Watch Now</a>
+            <p style="font-size: 12px; margin-top: 10px;">✨ Works on any device • Instant playback • Streaming link valid for 1 year</p>
           </div>
           
-          <div class="steps">
-            <strong>📋 How to access your videos:</strong>
-            <ol>
+          <!-- Download Option -->
+          <div style="text-align: center; background: #e0e7ff; padding: 20px; border-radius: 12px; margin: 20px 0;">
+            <h3 style="color: #3b82f6; margin-top: 0;">📥 Download for Offline</h3>
+            <p>Download the ZIP file to watch offline:</p>
+            <a href="${downloadLink}" class="button download-btn" style="background: #3b82f6;">📥 Download ZIP</a>
+            <ol style="text-align: left; margin-top: 15px;">
               <li>Download the ZIP file to your computer or phone</li>
               <li>Extract the ZIP file (right-click → Extract All)</li>
               <li>Open the extracted folder to access your videos</li>
-              <li>Videos can be played on any media player</li>
             </ol>
           </div>
           
           <div class="warning">
             <strong>⚠️ Important Notes:</strong>
             <ul>
-              <li>The download link expires in <strong>24 hours</strong></li>
-              <li>Download on a stable internet connection</li>
-              <li>Keep the ZIP file in a safe place after extraction</li>
-              <li>If the link expires, please contact support</li>
+              <li>🔗 Streaming link: <strong>${watchUrl}</strong></li>
+              <li>📥 Download link expires in <strong>24 hours</strong></li>
+              <li>📺 Streaming link expires in <strong>1 year</strong></li>
+              <li>💾 Save the ZIP file for permanent offline access</li>
+              <li>❓ Need help? Contact support</li>
             </ul>
           </div>
           
@@ -146,7 +155,7 @@ export async function sendVideoEmail(data, env) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: "Fundora <noreply@fundorashop.com>",  // ✅ CHANGED
+      from: "Fundora <noreply@fundorashop.com>",
       to: [to],
       subject: `Your Video Collection: ${collectionTitle}`,
       html: html
@@ -158,26 +167,6 @@ export async function sendVideoEmail(data, env) {
   return { status: res.status, body: text };
 }
 
-// =========================
-// UNIFIED FUNCTION (Backward Compatibility)
-// =========================
-export async function sendEbookEmail(data, env) {
-  const { to, bookTitle, downloadLink, isVideoCollection, fileType } = data;
-
-  if (isVideoCollection) {
-    return sendVideoEmail({
-      to: to,
-      collectionTitle: bookTitle,
-      downloadLink: downloadLink
-    }, env);
-  } else {
-    return sendBookEmail({
-      to: to,
-      bookTitle: bookTitle,
-      downloadLink: downloadLink
-    }, env);
-  }
-}
 
 // =========================
 // PASSWORD RESET EMAIL

@@ -20,6 +20,8 @@ import { forgetPassword } from "./routes/forgetPassword";
 import { resetPassword } from "./routes/resetPassword";
 import { submitRating } from "./routes/submitRating";
 import { getReviews } from "./routes/getReviews";
+import { verifyStreamingAccess } from "./routes/verifyStreamingAccess";  
+
 
 
 // Last deploy: 2026-05-27 - Testing GitHub Actions
@@ -146,6 +148,9 @@ if (path === "/sitemap.xml") {
 }
 
 
+if (path === "/verify-streaming-access" && request.method === "GET") {
+  return verifyStreamingAccess(request, env, cors);
+}
 
       // DEBUG RESPONSE (better than silent failure)
       return json(

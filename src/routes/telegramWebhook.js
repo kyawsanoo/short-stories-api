@@ -70,6 +70,7 @@ export async function telegramWebhook(request, env) {
 
       let downloadLink = null;
       let productTitle = "";
+      let streamingToken = null;
       const isVideoCollection = order.product_type === "video_collection";
 
       if (isVideoCollection) {
@@ -92,6 +93,37 @@ export async function telegramWebhook(request, env) {
         } else {
           console.error("No file found for video collection:", order.product_id);
         }
+        
+        // =============================================
+        // GENERATE STREAMING ACCESS TOKEN
+        // =============================================
+        streamingToken = crypto.randomUUID();
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 365); // 1 year access
+        
+        // Create video_access table if not exists (run once)
+        await env.DB.prepare(`
+          CREATE TABLE IF NOT EXISTS video_access (
+            id TEXT PRIMARY KEY,
+            order_id TEXT,
+            collection_id INTEGER,
+            user_email TEXT,
+            access_token TEXT,
+            expires_at TEXT,
+            created_at TEXT
+          )
+        `).run();
+        
+        // Store streaming access
+        await env.DB.prepare(`
+          INSERT INTO video_access (id, order_id, collection_id, user_email, access_token, expires_at, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          crypto.randomUUID(), orderId, order.product_id, order.email, 
+          streamingToken, expiresAt.toISOString(), new Date().toISOString()
+        ).run();
+        
+        console.log("🎬 Streaming access granted with token:", streamingToken);
       } else {
         productTitle = order.book_title || "E-Book";
         
@@ -129,19 +161,21 @@ export async function telegramWebhook(request, env) {
         console.log("✅ Invoice payment_status updated");
       }
 
-      // Send email
-      if (order?.email && downloadLink) {
+      // Send email with BOTH download link and streaming link
+      if (order?.email) {
         console.log("📧 Preparing to send email to:", order.email);
         
         try {
           if (isVideoCollection) {
-            await sendVideoEmail({
-              to: order.email,
-              collectionTitle: productTitle,
-              downloadLink: downloadLink
-            }, env);
-            console.log("🎬 Video email sent to:", order.email);
-          } else {
+  const watchUrl = `https://fundorashop.com/watch?token=${streamingToken}&id=${order.product_id}`;
+  await sendVideoEmail({
+    to: order.email,
+    collectionTitle: productTitle,
+    downloadLink: downloadLink,
+    watchUrl: watchUrl
+  }, env);
+  console.log("🎬 Video email sent to:", order.email);
+} else {
             await sendBookEmail({
               to: order.email,
               bookTitle: productTitle,
