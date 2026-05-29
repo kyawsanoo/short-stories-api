@@ -19,6 +19,7 @@ export async function books(request, env, cors) {
       b.cover, 
       b.category, 
       b.video,
+      b.is_free,  
       a.qr_url as author_qr_url
     FROM books b
     LEFT JOIN authors a ON b.author = a.name
@@ -56,6 +57,7 @@ export async function books(request, env, cors) {
     cover: fixCover(b.cover),
     category: b.category,
     video: b.video,
+    is_free: b.is_free === 1 || b.is_free === true,
     author_qr_url: b.author_qr_url || null
   }));
 

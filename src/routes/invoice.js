@@ -16,7 +16,7 @@ export async function invoice(request, env, cors) {
       );
     }
 
-    // Get invoice with product info AND streaming token
+    // Get invoice with product info AND streaming tokens
     const invoice = await env.DB.prepare(
       `
       SELECT 
@@ -38,11 +38,13 @@ export async function invoice(request, env, cors) {
         vc.file as collection_file,
         vc.price as collection_price,
         vc.old_price as collection_old_price,
-        va.access_token
+        va.access_token as video_token,
+        ba.access_token as book_token
       FROM invoices i
       LEFT JOIN books b ON i.product_id = b.id AND i.product_type = 'book'
       LEFT JOIN video_collections vc ON i.product_id = vc.id AND i.product_type = 'video_collection'
       LEFT JOIN video_access va ON i.order_id = va.order_id AND i.product_id = va.collection_id
+      LEFT JOIN book_access ba ON i.order_id = ba.order_id AND i.product_id = ba.book_id
       WHERE i.invoice_no = ? AND i.email = ?
       `
     )
@@ -80,7 +82,8 @@ export async function invoice(request, env, cors) {
     let downloadButtonText = "";
     let downloadUrl = null;
     let displayAmount = invoice.amount || 0;
-    let streamingToken = invoice.access_token || null;
+    let videoToken = invoice.video_token || null;
+    let bookToken = invoice.book_token || null;
     
     if (isVideoCollection) {
       productTitle = invoice.collection_title || "Video Collection";
@@ -122,10 +125,14 @@ export async function invoice(request, env, cors) {
     const orderId = invoice.order_id || "-";
     const displayEmail = invoice.email;
 
-    // Generate watch URL if streaming token exists
+    // Generate watch URL for video or reader URL for book
     let watchUrl = "";
-    if (isVideoCollection && paymentStatus === 'paid' && streamingToken) {
-      watchUrl = `https://fundorashop.com/watch?token=${streamingToken}&id=${invoice.product_id}`;
+    let readerUrl = "";
+    
+    if (isVideoCollection && paymentStatus === 'paid' && videoToken) {
+      watchUrl = `https://fundorashop.com/watch?token=${videoToken}&id=${invoice.product_id}`;
+    } else if (!isVideoCollection && paymentStatus === 'paid' && bookToken) {
+      readerUrl = `https://fundorashop.com/reader.html?token=${bookToken}&id=${invoice.product_id}`;
     }
 
     const html = `<!DOCTYPE html>
@@ -205,7 +212,7 @@ export async function invoice(request, env, cors) {
       font-size: 16px;
     }
     .download:hover { transform: translateY(-2px); filter: brightness(1.05); }
-    .watch-btn {
+    .watch-btn, .read-btn {
       margin-top: 16px;
       display: block;
       padding: 14px 20px;
@@ -218,7 +225,7 @@ export async function invoice(request, env, cors) {
       transition: all 0.2s ease;
       font-size: 16px;
     }
-    .watch-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
+    .watch-btn:hover, .read-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
     .btn {
       margin-top: 20px;
       padding: 12px 20px;
@@ -272,12 +279,12 @@ export async function invoice(request, env, cors) {
       .detail-row { flex-direction: column; padding: 10px 0; gap: 4px; }
       .detail-label { min-width: auto; font-size: 12px; }
       .detail-value { text-align: left; font-size: 14px; }
-      .download, .watch-btn { padding: 12px 16px; font-size: 14px; }
+      .download, .watch-btn, .read-btn { padding: 12px 16px; font-size: 14px; }
     }
     @media print {
       body { background: white; color: black; }
       .card { background: white; box-shadow: none; }
-      .download, .watch-btn, .btn { display: none; }
+      .download, .watch-btn, .read-btn, .btn { display: none; }
       .warning { background: #f0f0f0; border: 1px solid #ddd; }
     }
   </style>
@@ -299,10 +306,11 @@ export async function invoice(request, env, cors) {
   ${paymentStatus === 'paid' && downloadUrl ? `
     <a class="download" href="${downloadUrl}" target="_blank">${downloadButtonText}</a>
     ${watchUrl ? `<a class="watch-btn" href="${watchUrl}" target="_blank">🎬 Watch Now (Streaming)</a>` : ''}
+    ${readerUrl ? `<a class="read-btn" href="${readerUrl}" target="_blank">📖 Read Online Now</a>` : ''}
     ${isVideoCollection ? `
       <div class="warning"><strong>📋 How to access your videos:</strong><ol><li>Download the ZIP file to your device (or watch instantly above)</li><li>Extract the ZIP file (right-click → Extract All)</li><li>Open the extracted folder to access your videos</li></ol><strong>⚠️ Note:</strong> The download link expires in 24 hours. Streaming link expires in 1 year.</div>
     ` : `
-      <div class="warning"><strong>📋 Instructions:</strong><ul><li>Click the download button above</li><li>Save the PDF to your device</li><li>The link expires in 24 hours</li></ul></div>
+      <div class="warning"><strong>📋 How to access your book:</strong><ul><li>📖 Click "Read Online Now" to read instantly in your browser</li><li>📥 Click "Download E-Book" to save PDF to your device</li><li>🔗 Online reader link expires in 1 year</li><li>📥 Download link expires in 24 hours</li></ul></div>
     `}
   ` : paymentStatus === 'rejected' ? `
     <div class="warning rejected">

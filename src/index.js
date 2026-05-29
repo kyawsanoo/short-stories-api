@@ -24,7 +24,10 @@ import { verifyStreamingAccess } from "./routes/verifyStreamingAccess";
 import { generateShareToken } from "./routes/generateShareToken";
 import { verifyShareToken } from "./routes/verifyShareToken";
 
-
+import { verifyBookAccess } from "./routes/verifyBookAccess";
+import { freeBooks } from "./routes/freeBooks";
+import { readFreeBook } from "./routes/readFreeBook";
+import { proxyPDF } from "./routes/proxyPDF";
 
 // Last deploy: 2026-05-27 - Testing GitHub Actions
 
@@ -120,6 +123,25 @@ if (path === "/book-reviews" && request.method === "GET") {
   return getReviews(request, env, cors);
 }
 
+
+      // Get all free books
+      if (path === "/free-books" && request.method === "GET") {
+        return freeBooks(request, env, cors);
+      }
+
+      // Read free book directly (no checkout)
+      // Matches: /read-free-book/BOOK_ID
+      if (path.startsWith("/read-free-book/") && request.method === "GET") {
+        return readFreeBook(request, env, cors);
+      }
+
+  
+if (path === "/proxy-pdf" && request.method === "GET") {
+  return proxyPDF(request, env, cors);
+}
+
+
+
 // =============================================
 // SITEMAP ROUTE - ADD THIS HERE
 // =============================================
@@ -159,8 +181,21 @@ if (path === "/verify-share-token" && request.method === "GET") {
   return verifyShareToken(request, env, cors);
 }
 
+if (path === "/test-token" && request.method === "GET") {
+  const token = url.searchParams.get("token");
+  const result = await env.DB.prepare(`
+    SELECT * FROM video_access WHERE access_token = ?
+  `).bind(token).first();
+  return json({ found: !!result, data: result }, 200, cors);
+}
+
 if (path === "/verify-streaming-access" && request.method === "GET") {
   return verifyStreamingAccess(request, env, cors);
+}
+
+
+if (path === "/verify-book-access" && request.method === "GET") {
+  return verifyBookAccess(request, env, cors);
 }
 
       // DEBUG RESPONSE (better than silent failure)

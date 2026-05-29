@@ -1,10 +1,10 @@
 // =========================
-// BOOK EMAIL (PDF)
+// BOOK EMAIL (PDF + ONLINE READER)
 // =========================
 export async function sendBookEmail(data, env) {
-  const { to, bookTitle, downloadLink } = data;
+  const { to, bookTitle, downloadLink, readerUrl } = data;
 
-  console.log("📚 BOOK EMAIL START:", { to, bookTitle, downloadLink });
+  console.log("📚 BOOK EMAIL START:", { to, bookTitle, downloadLink, readerUrl });
 
   const html = `
     <!DOCTYPE html>
@@ -15,9 +15,12 @@ export async function sendBookEmail(data, env) {
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { background: linear-gradient(135deg, #3b82f6, #1e40af); color: white; padding: 30px; text-align: center; border-radius: 10px; }
         .content { padding: 30px; background: #f9fafb; border-radius: 10px; margin-top: 20px; }
-        .button { display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+        .button { display: inline-block; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+        .read-btn { background: #10b981; }
+        .download-btn { background: #3b82f6; }
         .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #6b7280; }
         .warning { background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b; }
+        .success-box { background: #10b98120; padding: 20px; border-radius: 12px; margin: 20px 0; text-align: center; }
       </style>
     </head>
     <body>
@@ -26,19 +29,32 @@ export async function sendBookEmail(data, env) {
           <h1>📚 Thank You for Your Purchase!</h1>
         </div>
         <div class="content">
-          <h2>Your Ebook: ${bookTitle}</h2>
-          <p>Your ebook is ready for download. Click the button below to download your PDF.</p>
+          <h2>${bookTitle}</h2>
           
-          <div style="text-align: center;">
-            <a href="${downloadLink}" class="button">📥 Download Ebook (PDF)</a>
+          <!-- Online Reader Option -->
+          ${readerUrl ? `
+          <div class="success-box">
+            <h3 style="color: #10b981; margin-top: 0;">📖 Read Online (Recommended)</h3>
+            <p>Click below to read instantly in your browser. No download needed!</p>
+            <a href="${readerUrl}" class="button read-btn" style="background: #10b981;">📖 Read Online Now</a>
+            <p style="font-size: 12px; margin-top: 10px;">✨ Works on any device • Instant reading • No storage needed</p>
+          </div>
+          ` : ''}
+          
+          <!-- Download Option -->
+          <div style="text-align: center; margin: 20px 0;">
+            <p>Or download the PDF for offline reading:</p>
+            <a href="${downloadLink}" class="button download-btn" style="background: #3b82f6;">📥 Download PDF</a>
           </div>
           
           <div class="warning">
             <strong>⚠️ Important Notes:</strong>
             <ul>
-              <li>The download link expires in <strong>24 hours</strong></li>
-              <li>Save the PDF to your device for offline reading</li>
-              <li>If the link expires, please contact support</li>
+              <li>🔗 Online reader link expires in <strong>1 year</strong></li>
+              <li>📥 Download link expires in <strong>24 hours</strong></li>
+              <li>💾 Save the PDF to your device for permanent offline access</li>
+              <li>📖 Bookmark the reader link for easy access</li>
+              <li>❓ If anything doesn't work, contact support</li>
             </ul>
           </div>
           
@@ -60,7 +76,7 @@ export async function sendBookEmail(data, env) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: "Fundora <noreply@fundorashop.com>",  // ✅ CHANGED
+      from: "Fundora <noreply@fundorashop.com>",
       to: [to],
       subject: `Your Ebook: ${bookTitle}`,
       html: html
@@ -71,6 +87,7 @@ export async function sendBookEmail(data, env) {
   console.log("📚 BOOK EMAIL RESULT:", res.status);
   return { status: res.status, body: text };
 }
+
 
 // =========================
 // VIDEO COLLECTION EMAIL (ZIP + STREAMING)
