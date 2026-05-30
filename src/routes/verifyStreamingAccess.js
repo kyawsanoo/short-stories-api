@@ -33,42 +33,78 @@ export async function verifyStreamingAccess(request, env, cors) {
       return new Response(JSON.stringify({ hasAccess: false, message: "Token expired" }), { status: 200, headers });
     }
 
-    // Get logged-in user
+    // Get logged-in user from Authorization header
     const authHeader = request.headers.get('Authorization');
-    let currentUserId = null;
+    let currentUser = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const userToken = authHeader.slice(7);
-      const user = await env.DB.prepare(
-        "SELECT id FROM users WHERE session_token = ?"
+      // Try common column names
+      let user = await env.DB.prepare(
+        "SELECT id, email FROM users WHERE session_token = ?"
       ).bind(userToken).first();
-      currentUserId = user?.id;
+      if (!user) {
+        user = await env.DB.prepare(
+          "SELECT id, email FROM users WHERE token = ?"
+        ).bind(userToken).first();
+      }
+      currentUser = user;
     }
 
-    // ---- User binding logic ----
-    if (access.user_id) {
-      // Token is bound to a specific user
-      if (!currentUserId) {
-        return new Response(JSON.stringify({ hasAccess: false, login_required: true, message: "Please log in to watch." }), { status: 200, headers });
+    // Resolve effective user_id (fallback to email)
+    let effectiveUserId = access.user_id;
+    if (!effectiveUserId && access.user_email) {
+      const userByEmail = await env.DB.prepare(
+        "SELECT id FROM users WHERE email = ?"
+      ).bind(access.user_email).first();
+      if (userByEmail) {
+        effectiveUserId = userByEmail.id;
+        // Bind token to this user for future requests
+        await env.DB.prepare(
+          "UPDATE video_access SET user_id = ? WHERE access_token = ?"
+        ).bind(effectiveUserId, token).run();
+        console.log(`Bound token ${token} to user ${effectiveUserId}`);
       }
-      if (currentUserId !== access.user_id) {
-        return new Response(JSON.stringify({ hasAccess: false, message: "This video belongs to another user." }), { status: 200, headers });
+    }
+
+    // Enforce access
+    if (effectiveUserId) {
+      if (!currentUser) {
+        return new Response(JSON.stringify({
+          hasAccess: false,
+          login_required: true,
+          message: "Please log in to watch this video."
+        }), { status: 200, headers });
+      }
+      if (currentUser.id !== effectiveUserId) {
+        return new Response(JSON.stringify({
+          hasAccess: false,
+          message: "This video was purchased by another user. Access denied."
+        }), { status: 200, headers });
       }
     } else {
-      // Old token without user_id – require login but any user works (or you can allow without login)
-      if (!currentUserId) {
-        return new Response(JSON.stringify({ hasAccess: false, login_required: true, message: "Please log in to watch." }), { status: 200, headers });
+      // No user binding – require login (should not happen for new tokens)
+      if (!currentUser) {
+        return new Response(JSON.stringify({
+          hasAccess: false,
+          login_required: true,
+          message: "Please log in to watch."
+        }), { status: 200, headers });
       }
-      // Optionally, bind this token to the current user now
+      // Bind to this user now
       await env.DB.prepare(
         "UPDATE video_access SET user_id = ? WHERE access_token = ?"
-      ).bind(currentUserId, token).run();
+      ).bind(currentUser.id, token).run();
     }
 
-    return new Response(JSON.stringify({ hasAccess: true, collection_id: access.collection_id, message: "Access granted" }), { status: 200, headers });
+    return new Response(JSON.stringify({
+      hasAccess: true,
+      collection_id: access.collection_id,
+      message: "Access granted"
+    }), { status: 200, headers });
 
   } catch (err) {
     console.error("Verification error:", err);
-    return new Response(JSON.stringify({ hasAccess: false, message: "Server error" }), {
+    return new Response(JSON.stringify({ hasAccess: false, message: "Server error: " + err.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
