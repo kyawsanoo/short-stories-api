@@ -97,7 +97,7 @@ export async function telegramWebhook(request, env) {
         console.error("No file found for video collection:", order.product_id);
       }
       
-  // Get user_id from email (optional)
+  // Get user_id from email
       let userId = null;
       try {
         const user = await env.DB.prepare(`
@@ -110,28 +110,33 @@ export async function telegramWebhook(request, env) {
         console.error("Error finding user:", userError);
       }
       
+  // Generate session_id (for tracking individual viewing sessions)
+      const sessionId = crypto.randomUUID();
+      
   // Generate token
       streamingToken = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 365);
       
-  // INSERT using YOUR actual table structure
+  // INSERT with ALL columns including session_id
       await env.DB.prepare(`
-    INSERT INTO video_access (id, order_id, collection_id, user_email, expires_at, created_at, access_token, user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO video_access (id, order_id, collection_id, user_email, expires_at, created_at, access_token, user_id, session_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
       crypto.randomUUID(),
       orderId,
-    parseInt(order.product_id),  // Convert to INTEGER
-    order.email,
-    expiresAt.toISOString(),
-    new Date().toISOString(),
-    streamingToken,
-    userId
-    ).run();
+      parseInt(order.product_id),
+      order.email,
+      expiresAt.toISOString(),
+      new Date().toISOString(),
+      streamingToken,
+      userId,
+      sessionId
+      ).run();
       
       console.log("✅ Video access token created:", streamingToken);
       console.log("👤 Bound to user:", userId || "none");
+      console.log("🔑 Session ID:", sessionId);
     } else {
         // =============================================
         // BOOK ORDER - Generate online reader token

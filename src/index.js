@@ -28,8 +28,9 @@ import { verifyBookAccess } from "./routes/verifyBookAccess";
 import { freeBooks } from "./routes/freeBooks";
 import { readFreeBook } from "./routes/readFreeBook";
 import { proxyPDF } from "./routes/proxyPDF";
+import { myPurchasedProducts } from "./routes/myPurchasedProducts";
 
-// Last deploy: 2026-05-27 - Testing GitHub Actions
+
 
 export default {
   async fetch(request, env) {
@@ -135,6 +136,24 @@ if (path === "/book-reviews" && request.method === "GET") {
         return readFreeBook(request, env, cors);
       }
 
+      // My Purchased Products route
+if (path === "/myPurchasedProducts" && request.method === "GET") {
+  return myPurchasedProducts(request, env, cors);
+}
+
+// OPTIONS preflight handler for myPurchasedProducts
+if (path === "/myPurchasedProducts" && request.method === "OPTIONS") {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "https://fundorashop.com",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
+
+
   
 if (path === "/proxy-pdf" && request.method === "GET") {
   return proxyPDF(request, env, cors);
@@ -188,6 +207,7 @@ if (path === "/test-token" && request.method === "GET") {
   `).bind(token).first();
   return json({ found: !!result, data: result }, 200, cors);
 }
+
 
 if (path === "/verify-streaming-access" && request.method === "GET") {
   return verifyStreamingAccess(request, env, cors);
