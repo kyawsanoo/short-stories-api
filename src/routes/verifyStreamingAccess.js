@@ -33,20 +33,14 @@ export async function verifyStreamingAccess(request, env, cors) {
       return new Response(JSON.stringify({ hasAccess: false, message: "Token expired" }), { status: 200, headers });
     }
 
-    // Get logged-in user from Authorization header
+        // Get logged-in user from Authorization header
     const authHeader = request.headers.get('Authorization');
     let currentUser = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const userToken = authHeader.slice(7);
-      // Try common column names
-      let user = await env.DB.prepare(
+      const user = await env.DB.prepare(
         "SELECT id, email FROM users WHERE session_token = ?"
       ).bind(userToken).first();
-      if (!user) {
-        user = await env.DB.prepare(
-          "SELECT id, email FROM users WHERE token = ?"
-        ).bind(userToken).first();
-      }
       currentUser = user;
     }
 
@@ -58,14 +52,12 @@ export async function verifyStreamingAccess(request, env, cors) {
       ).bind(access.user_email).first();
       if (userByEmail) {
         effectiveUserId = userByEmail.id;
-        // Bind token to this user for future requests
         await env.DB.prepare(
           "UPDATE video_access SET user_id = ? WHERE access_token = ?"
         ).bind(effectiveUserId, token).run();
         console.log(`Bound token ${token} to user ${effectiveUserId}`);
       }
     }
-
     // Enforce access
     if (effectiveUserId) {
       if (!currentUser) {
