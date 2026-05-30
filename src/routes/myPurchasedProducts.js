@@ -54,18 +54,25 @@ export async function myPurchasedProducts(request, env, cors) {
       ORDER BY o.created_at DESC
     `).bind(user.email).all();
 
-    const products = (purchases.results || []).map(p => ({
-      order_id: p.order_id,
-      product_type: p.product_type,
-      product_id: p.product_id,
-      purchased_date: p.purchased_date,
-      title: p.book_title || p.video_title,
-      cover: p.book_cover || p.video_thumbnail,
-      author: p.book_author,
-      access_token: p.book_token || p.video_token,
-      expires_at: p.video_expires,
-      is_expired: p.video_expires ? new Date(p.video_expires) < new Date() : false,
-    }));
+    const products = (purchases.results || []).map(p => {
+  let productId = p.product_id;
+  // If product_id is a number-like string ending with .0 (e.g., "1.0"), convert to integer string
+  if (typeof productId === 'string' && productId.includes('.') && !isNaN(parseFloat(productId))) {
+    productId = Math.floor(parseFloat(productId)).toString();
+  }
+  return {
+    order_id: p.order_id,
+    product_type: p.product_type,
+    product_id: productId,
+    purchased_date: p.purchased_date,
+    title: p.book_title || p.video_title,
+    cover: p.book_cover || p.video_thumbnail,
+    author: p.book_author,
+    access_token: p.book_token || p.video_token,
+    expires_at: p.video_expires,
+    is_expired: p.video_expires ? new Date(p.video_expires) < new Date() : false,
+  };
+});
 
     return new Response(JSON.stringify({ products }), { status: 200, headers });
 
